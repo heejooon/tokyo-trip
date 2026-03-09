@@ -384,4 +384,69 @@
                         <h4 class="text-slate-800 font-bold text-base flex items-center gap-2">${loc.time} | ${loc.name}</h4>
                         <p class="text-[13px] text-slate-500 font-medium mt-1.5 leading-snug break-keep">${loc.text}</p>
                         ${loc.routeLink ? `
-                        <a href="${loc.routeLink}" target="_blank" class="inline-flex items-center gap-1.5 text-[11px
+                        <a href="${loc.routeLink}" target="_blank" class="inline-flex items-center gap-1.5 text-[11px] text-indigo-600 font-bold mt-2.5 bg-indigo-50/80 px-2.5 py-1.5 rounded-lg border border-indigo-100 hover:bg-indigo-100 transition-colors cursor-pointer shadow-sm">
+                            ${loc.routeText} <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                        </a>` : ''}
+                    </div>
+                `;
+            });
+            textHtml += `</div>`;
+            document.getElementById('itinerary-content').innerHTML = textHtml;
+            map.fitBounds(currentLayerGroup.getBounds(), { padding: [40, 40] });
+            
+            const aiBox = document.getElementById('ai-daily-box');
+            aiBox.classList.remove('hidden');
+        }
+
+        async function triggerAiAnalysis() {
+            if (!currentDayContext || !currentDayKey) return;
+            const w = weatherData[currentDayKey];
+            const contentBox = document.getElementById('ai-daily-content');
+            contentBox.innerHTML = `<div class="flex items-center text-purple-600 py-1"><span class="spinner"></span> AI가 날씨와 동선을 분석하여 맞춤 꿀팁을 작성하고 있습니다...</div>`;
+            
+            const places = currentDayContext.locations.map(l => l.name).join(", ");
+            const prompt = `도쿄 여행 중 ${currentDayContext.date} 일정입니다. 날씨는 오전 ${w.am.text}, 오후 ${w.pm.text}, 최고기온 ${w.max}도, 최저기온 ${w.min}도입니다. 동선은 [${places}] 순서입니다. 이 날씨와 동선을 종합적으로 고려하여, 사진을 예쁘게 찍고 기분 좋게 산책하기 위한 구체적인 꿀팁을 2~3줄로 작성해 주세요. (명소 이름 포함, 자연스럽고 다정한 말투)`;
+            
+            const responseText = await fetchGemini(prompt);
+            contentBox.innerHTML = responseText.replace(/\n/g, '<br>');
+        }
+
+        // 팝업 안의 AI 팁 버튼 동작 복구
+        window.getPhotoTip = async function(name, idx) {
+            const btn = document.getElementById(`btn-tip-${idx}`);
+            const box = document.getElementById(`ai-tip-box-${idx}`);
+            if (name.includes('호텔') || name.includes('공항') || name.includes('게이세이') || name.includes('복귀') || name.includes('짐 보관')) { 
+                box.innerHTML = "휴식 및 이동 장소입니다 🍵"; box.classList.remove('hidden'); btn.style.display = 'none'; return; 
+            }
+            btn.innerHTML = `<span class="spinner"></span>`;
+            const res = await fetchGemini(`도쿄 '${name}' 스트릿 스냅 사진 촬영 팁 1문장.`);
+            box.innerHTML = `💡 <b>Tip:</b> ${res}`;
+            box.classList.remove('hidden'); btn.style.display = 'none';
+        }
+
+        window.focusMapMarker = function(index) {
+            if(currentMapMarkers[index]) {
+                const marker = currentMapMarkers[index];
+                map.setView(marker.getLatLng(), 15, { animate: true });
+                setTimeout(() => marker.openPopup(), 400);
+            }
+        };
+
+        function showAll() {
+            document.getElementById('ai-daily-box').classList.add('hidden');
+            document.getElementById('itinerary-content').innerHTML = `<div class="flex flex-col items-center justify-center h-full text-slate-400 mt-20"><div class="text-5xl mb-4">🌏</div><p class="font-medium">전체 루트가 표시되었습니다.</p></div>`;
+            currentLayerGroup.clearLayers();
+            Object.keys(itineraryData).forEach(day => {
+                const d = itineraryData[day];
+                L.polyline(d.locations.map(l => [l.lat, l.lng]), { color: d.color, weight: 4, opacity: 0.4 }).addTo(currentLayerGroup);
+            });
+            map.setZoom(12);
+        }
+
+        window.onload = async () => {
+            updateDynamicTitle();
+            await initWeather();
+        };
+    </script>
+</body>
+</html>
