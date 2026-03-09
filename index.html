@@ -4,362 +4,449 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>도쿄 여행 D-Day 트래커</title>
-    <!-- Tailwind CSS (Dark Mode 지원 활성화) -->
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = { darkMode: 'class' }
     </script>
     <!-- Leaflet CSS & JS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
     <style>
-        body { margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; font-family: 'Noto Sans KR', sans-serif; overflow: hidden; }
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
         
-        /* 다크모드 전역 배경색 전환 부드럽게 */
+        body { margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; font-family: 'Noto Sans KR', sans-serif; overflow: hidden; }
         body, #itinerary-panel, header { transition: background-color 0.3s, color 0.3s; }
         
         .main-container { display: flex; flex-direction: column; flex-grow: 1; overflow: hidden; }
         @media (min-width: 768px) { .main-container { flex-direction: row; } }
         
-        /* 모바일 지도 사이즈 (이전 상태 유지) */
         #map { flex: none; height: 28vh; min-height: 220px; z-index: 1; border-bottom: 1px solid #e2e8f0; }
         @media (min-width: 768px) { #map { flex: 1; height: auto; border-bottom: none; border-right: 1px solid #e2e8f0; } }
-
-        /* 다크모드일 때 지도 색상 반전 (눈 보호 및 트렌디한 느낌) */
         .dark #map { filter: brightness(0.8) invert(1) contrast(0.9) hue-rotate(200deg); border-color: #1e293b; }
 
         #itinerary-panel { flex: 1; overflow-y: auto; background-color: #ffffff; z-index: 10; scroll-behavior: smooth; }
         .dark #itinerary-panel { background-color: #0f172a; }
         @media (min-width: 768px) { #itinerary-panel { max-width: 480px; flex: none; width: 480px; } }
 
-        /* 가로 스크롤바 숨기기 */
-        .hide-scrollbar::-webkit-scrollbar { display: none; }
-        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-
-        /* 콤팩트 팝업 & 다크모드 대응 */
-        .custom-popup .leaflet-popup-content-wrapper { background: rgba(255, 255, 255, 0.98); color: #1e293b; border-radius: 12px; backdrop-filter: blur(8px); border: 1px solid #e2e8f0; box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); padding: 0; }
-        .custom-popup .leaflet-popup-tip { background: rgba(255, 255, 255, 0.98); }
-        .custom-popup .leaflet-popup-content { margin: 8px 12px; }
-        
-        .dark .custom-popup .leaflet-popup-content-wrapper { background: rgba(30, 41, 59, 0.95); color: #f8fafc; border-color: #334155; }
-        .dark .custom-popup .leaflet-popup-tip { background: rgba(30, 41, 59, 0.95); }
-
-        /* 마커 라벨 스타일 */
         .marker-label { background-color: white; border: 3px solid; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; box-shadow: 0 3px 6px rgba(0,0,0,0.2); }
         .dark .marker-label { background-color: #1e293b; }
 
-        .highlight-item { animation: highlight-fade 2s ease-out; }
-        @keyframes highlight-fade { 0% { background-color: rgba(59, 130, 246, 0.1); border-radius: 0.5rem; } 100% { background-color: transparent; border-radius: 0.5rem; } }
-
         ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         .dark ::-webkit-scrollbar-thumb { background: #475569; }
         
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .spinner { border: 2px solid rgba(139, 92, 246, 0.2); border-left-color: #8b5cf6; border-radius: 50%; width: 14px; height: 14px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 4px; }
+
+        .tip-box { background: linear-gradient(135deg, #fffbeb, #fef3c7); border: 1px solid #fde68a; border-radius: 12px; padding: 16px; margin-top: 20px; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .dark .tip-box { background: linear-gradient(135deg, #1e293b, #0f172a); border-color: #334155; }
+
+        /* Leaflet 팝업 다크모드 글자/배경색 수정 */
+        .dark .leaflet-popup-content-wrapper,
+        .dark .leaflet-popup-tip { background-color: #1e293b !important; }
+        .dark .leaflet-popup-content, .dark .leaflet-popup-content div { color: #f8fafc !important; }
     </style>
 </head>
 <body class="bg-slate-50 dark:bg-slate-900">
 
-    <!-- Header & Navigation -->
     <header class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md pt-5 pb-3 px-4 shadow-sm z-20 relative border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
-        
         <div class="flex items-center justify-between mb-4">
-            <!-- 디데이 자동 계산 타이틀 -->
             <h1 class="text-xl md:text-2xl font-black tracking-tight flex items-center gap-1">
                 <span>👺</span>
                 <span id="dynamic-title-text" class="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600 dark:from-blue-400 dark:to-purple-400 drop-shadow-sm">도쿄 여행 계산 중...</span>
             </h1>
-            
-            <!-- 다크모드 토글 버튼 -->
             <button onclick="toggleDarkMode()" class="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-yellow-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors shadow-sm focus:outline-none">
                 <span id="theme-icon" class="text-lg leading-none flex items-center justify-center">🌙</span>
             </button>
         </div>
         
-        <!-- 한 줄 버튼 그룹 -->
         <div class="flex w-full gap-1.5 md:gap-2.5 justify-between pb-1">
-            <button onclick="drawRoute('day1')" class="flex-1 flex justify-center items-center bg-gradient-to-br from-blue-400 to-blue-500 active:scale-95 md:hover:scale-105 text-white py-2.5 rounded-xl text-[11px] sm:text-sm font-bold transition-transform shadow-sm shadow-blue-200 dark:shadow-none leading-none">Day1<span class="hidden min-[375px]:inline ml-0.5">(토)</span></button>
-            <button onclick="drawRoute('day2')" class="flex-1 flex justify-center items-center bg-gradient-to-br from-pink-400 to-rose-400 active:scale-95 md:hover:scale-105 text-white py-2.5 rounded-xl text-[11px] sm:text-sm font-bold transition-transform shadow-sm shadow-pink-200 dark:shadow-none leading-none">Day2<span class="hidden min-[375px]:inline ml-0.5">(일)</span></button>
-            <button onclick="drawRoute('day3')" class="flex-1 flex justify-center items-center bg-gradient-to-br from-emerald-400 to-teal-400 active:scale-95 md:hover:scale-105 text-white py-2.5 rounded-xl text-[11px] sm:text-sm font-bold transition-transform shadow-sm shadow-teal-200 dark:shadow-none leading-none">Day3<span class="hidden min-[375px]:inline ml-0.5">(월)</span></button>
-            <button onclick="drawRoute('day4')" class="flex-1 flex justify-center items-center bg-gradient-to-br from-orange-400 to-amber-500 active:scale-95 md:hover:scale-105 text-white py-2.5 rounded-xl text-[11px] sm:text-sm font-bold transition-transform shadow-sm shadow-orange-200 dark:shadow-none leading-none">Day4<span class="hidden min-[375px]:inline ml-0.5">(화)</span></button>
-            <button onclick="showAll()" class="flex-1 flex justify-center items-center bg-slate-700 hover:bg-slate-800 dark:bg-slate-600 dark:hover:bg-slate-500 active:scale-95 md:hover:scale-105 text-white py-2.5 rounded-xl text-[11px] sm:text-sm font-bold transition-transform shadow-sm shadow-slate-300 dark:shadow-none leading-none gap-0.5"><span class="hidden min-[375px]:inline">🗺️</span>전체</button>
+            <button onclick="drawRoute('day1')" class="flex-1 flex justify-center items-center bg-gradient-to-br from-blue-400 to-blue-500 active:scale-95 text-white py-2.5 rounded-xl text-[11px] sm:text-sm font-bold transition-transform shadow-sm leading-none">Day 1<span>(토)</span></button>
+            <button onclick="drawRoute('day2')" class="flex-1 flex justify-center items-center bg-gradient-to-br from-pink-400 to-rose-400 active:scale-95 text-white py-2.5 rounded-xl text-[11px] sm:text-sm font-bold transition-transform shadow-sm leading-none">Day 2<span>(일)</span></button>
+            <button onclick="drawRoute('day3')" class="flex-1 flex justify-center items-center bg-gradient-to-br from-emerald-400 to-teal-400 active:scale-95 text-white py-2.5 rounded-xl text-[11px] sm:text-sm font-bold transition-transform shadow-sm leading-none">Day 3<span>(월)</span></button>
+            <button onclick="drawRoute('day4')" class="flex-1 flex justify-center items-center bg-gradient-to-br from-orange-400 to-amber-500 active:scale-95 text-white py-2.5 rounded-xl text-[11px] sm:text-sm font-bold transition-transform shadow-sm leading-none">Day 4<span>(화)</span></button>
+            <button onclick="showAll()" class="flex-1 flex justify-center items-center bg-slate-700 text-white py-2.5 rounded-xl text-[11px] sm:text-sm font-bold active:scale-95 transition-transform leading-none uppercase">All</button>
         </div>
     </header>
 
-    <!-- Main Content -->
     <div class="main-container">
-        <!-- Map Area -->
         <div id="map"></div>
 
-        <!-- Itinerary Text Area -->
         <div id="itinerary-panel" class="p-5 md:p-7 relative">
             
-            <!-- AI Daily Box -->
-            <div id="ai-daily-box" class="mb-8 bg-indigo-50 dark:bg-slate-800 border border-indigo-100 dark:border-slate-700 rounded-2xl p-4 shadow-sm hidden transition-colors">
-                <h3 class="text-purple-700 dark:text-purple-400 font-extrabold flex items-center gap-1.5 mb-2 text-sm"><span class="text-lg">✨</span> AI 데일리 기상 & 무드</h3>
-                <div id="ai-daily-content" class="text-sm text-slate-700 dark:text-slate-300 font-medium leading-relaxed min-h-[40px]">
-                    <!-- AI Content -->
+            <!-- 개편된 AI 날씨 & 무드 박스 (항상 표시) -->
+            <div id="ai-daily-box" class="mb-8 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 shadow-sm hidden transition-colors">
+                <div class="flex items-start justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <div class="text-4xl" id="daily-weather-icon">🌤️</div>
+                        <div>
+                            <div class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                                <span id="daily-weather-date">날씨 불러오는 중...</span>
+                                <span class="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full text-[10px] font-black" id="daily-weather-pop">☔ 0%</span>
+                            </div>
+                            <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                오전 <span id="weather-am" class="font-bold"></span> · 오후 <span id="weather-pm" class="font-bold"></span> | 
+                                <span class="text-red-500">최고 <span id="temp-max"></span>°</span> · 
+                                <span class="text-blue-500">최저 <span id="temp-min"></span>°</span>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 분석하기 버튼이 심플한 ✨ 로 변경됨 -->
+                    <button onclick="triggerAiAnalysis()" class="bg-purple-100 hover:bg-purple-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-purple-600 dark:text-purple-400 w-10 h-10 rounded-xl text-xl flex items-center justify-center shadow-sm transition-transform active:scale-90" title="AI 사진 & 산책 꿀팁 분석">
+                        ✨
+                    </button>
+                </div>
+                <div id="ai-daily-content" class="text-[13px] text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-100 dark:border-slate-700/50 leading-relaxed font-medium">
+                    우측 상단의 <span class="text-purple-600 dark:text-purple-400 font-bold">✨ 버튼</span>을 누르면 AI가 오늘의 동선과 날씨에 맞춘 <b class="text-slate-800 dark:text-white">사진 & 산책 꿀팁</b>을 알려줍니다!
                 </div>
             </div>
 
-            <!-- Detailed Text Itinerary -->
             <div id="itinerary-content" class="pb-10">
                 <div class="flex flex-col items-center justify-center h-full text-slate-400 dark:text-slate-500 mt-20 transition-colors">
                     <div class="text-5xl mb-4 animate-bounce">👆</div>
                     <p class="font-medium">상단의 요일 버튼을 선택하세요</p>
                 </div>
             </div>
-
         </div>
     </div>
 
     <script>
-        // --- D-Day 및 타이틀 자동 계산 ---
         function updateDynamicTitle() {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
-            
-            // 여행 첫날 설정 (2026년 3월 14일)
-            const tripStart = new Date('2026-03-14T00:00:00');
-            tripStart.setHours(0, 0, 0, 0);
-
+            const today = new Date(); today.setHours(0,0,0,0);
+            const tripStart = new Date('2026-03-14T00:00:00'); tripStart.setHours(0,0,0,0);
             const diffTime = today.getTime() - tripStart.getTime();
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
             
-            let titleBadge = "";
-            if (diffDays < 0) {
-                titleBadge = `D${diffDays}`; // diffDays가 이미 음수이므로 D-5 형태로 나옴
-            } else if (diffDays === 0) {
-                titleBadge = "1일차";
-            } else if (diffDays === 1) {
-                titleBadge = "2일차";
-            } else if (diffDays === 2) {
-                titleBadge = "3일차";
-            } else if (diffDays === 3) {
-                titleBadge = "마지막날";
-            } else {
-                titleBadge = "여행 종료";
-            }
-            
-            document.getElementById('dynamic-title-text').innerText = `도쿄 여행 ${titleBadge}`;
+            let badge = (diffDays < 0) ? `D${diffDays}` : (diffDays <= 2 ? `${diffDays + 1}일차` : (diffDays === 3 ? "마지막날" : "여행 종료"));
+            document.getElementById('dynamic-title-text').innerText = `도쿄 여행 ${badge}`;
         }
 
-        // --- 다크모드 토글 로직 ---
         function toggleDarkMode() {
             document.documentElement.classList.toggle('dark');
-            const isDark = document.documentElement.classList.contains('dark');
-            document.getElementById('theme-icon').innerText = isDark ? '☀️' : '🌙';
+            document.getElementById('theme-icon').innerText = document.documentElement.classList.contains('dark') ? '☀️' : '🌙';
         }
 
-        // --- Gemini API Configuration ---
-        const apiKey = "AIzaSyBaymfWG8rcnLG-v1tJnVRQHV2fso6BMP4"; 
-        const modelName = apiKey ? "gemini-2.5-flash" : "gemini-2.5-flash-preview-09-2025";
+        const map = L.map('map', { zoomControl: false }).setView([35.6895, 139.6917], 12);
+        L.control.zoom({ position: 'bottomleft' }).addTo(map);
+        L.tileLayer('https://mt1.google.com/vt/lyrs=m&hl=ko&x={x}&y={y}&z={z}', { maxZoom: 19 }).addTo(map);
+
+        let currentDayContext = null;
+        let currentDayKey = null;
+        let currentLayerGroup = L.featureGroup().addTo(map);
+        let currentMapMarkers = [];
+
+        // --- 무료 날씨 API (Open-Meteo) 설정 및 호출 ---
+        let weatherData = {
+            day1: { max: 15, min: 6, pop: 10, am: {text:'맑음', icon:'☀️'}, pm: {text:'구름조금', icon:'⛅'} },
+            day2: { max: 16, min: 7, pop: 0, am: {text:'맑음', icon:'☀️'}, pm: {text:'맑음', icon:'☀️'} },
+            day3: { max: 13, min: 5, pop: 40, am: {text:'흐림', icon:'☁️'}, pm: {text:'비', icon:'🌧️'} },
+            day4: { max: 17, min: 8, pop: 10, am: {text:'구름조금', icon:'⛅'}, pm: {text:'맑음', icon:'☀️'} }
+        };
+
+        function parseWMO(code) {
+            if (code <= 1) return { text: '맑음', icon: '☀️' };
+            if (code <= 3) return { text: '구름조금', icon: '⛅' };
+            if (code === 45 || code === 48) return { text: '안개', icon: '🌫️' };
+            if (code >= 51 && code <= 67) return { text: '비', icon: '🌧️' };
+            if (code >= 71 && code <= 77) return { text: '눈', icon: '❄️' };
+            if (code >= 80 && code <= 82) return { text: '소나기', icon: '🌦️' };
+            if (code >= 95) return { text: '뇌우', icon: '⛈️' };
+            return { text: '흐림', icon: '☁️' };
+        }
+
+        async function initWeather() {
+            try {
+                // 3월 14일 ~ 17일 도쿄 날씨 무료 API 호출
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=35.6895&longitude=139.6917&hourly=weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FTokyo&start_date=2026-03-14&end_date=2026-03-17`;
+                const res = await fetch(url);
+                const data = await res.json();
+                
+                data.daily.time.forEach((date, i) => {
+                    const dayKey = `day${i + 1}`;
+                    const amIndex = i * 24 + 9; // 오전 9시 기준
+                    const pmIndex = i * 24 + 15; // 오후 3시 기준
+                    
+                    weatherData[dayKey] = {
+                        max: Math.round(data.daily.temperature_2m_max[i]),
+                        min: Math.round(data.daily.temperature_2m_min[i]),
+                        pop: data.daily.precipitation_probability_max[i] || 0,
+                        am: parseWMO(data.hourly.weather_code[amIndex]),
+                        pm: parseWMO(data.hourly.weather_code[pmIndex])
+                    };
+                });
+            } catch (e) {
+                console.log("Weather API fallback applied.");
+            }
+        }
+
+        // ==========================================
+        // ★★★ 아래 쌍따옴표 안에 발급받은 Gemini API 키를 입력하세요 ★★★
+        // ==========================================
+        const apiKey = "AIzaSyBkHMuyTVpM-sUOXbgDZAcWwWQBMzuZ0S0"; 
+        const modelName = "gemini-2.5-flash"; // 일반 API 키 사용을 위해 정식 모델명으로 수정됨
         
         async function fetchGemini(prompt) {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-            const payload = {
-                contents: [{ parts: [{ text: prompt }] }],
-                systemInstruction: { parts: [{ text: "너는 도쿄 로컬 가이드야. 날씨 정보는 검색을 활용해 정확히 알려주고, 무조건 요청한 양식에 맞춰서 아주 짧고 간결하게 대답해. 마크다운 기호(* 등)는 절대 사용하지 마." }] },
-                tools: [{ "google_search": {} }]
-            };
-            
             const delays = [1000, 2000, 4000, 8000, 16000];
             for (let i = 0; i < 5; i++) {
                 try {
-                    const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            contents: [{ parts: [{ text: prompt }] }],
+                            systemInstruction: { parts: [{ text: "도쿄 여행 가이드. 사진과 산책 위주로 다정하고 친절한 말투로 대답해. 마크다운 기호 금지." }] }
+                            // 개인 API 키 사용 시 권한 충돌(403, 400 에러)을 유발하던 구글 검색 도구 옵션을 제거했습니다.
+                        })
+                    });
                     const result = await response.json();
-                    if (!response.ok) throw new Error(result.error?.message || `HTTP Error: ${response.status}`);
-                    return result.candidates?.[0]?.content?.parts?.[0]?.text || "결과를 불러오지 못했습니다.";
+                    if (!response.ok) throw new Error(result.error?.message || "알 수 없는 API 에러");
+                    return result.candidates?.[0]?.content?.parts?.[0]?.text || "결과 없음";
                 } catch (error) {
-                    if (i === 4) return `<span class="text-red-500">🚨 에러: ${error.message}</span><br><span class="text-xs text-slate-400">1분 호출 제한(무료) 또는 API 키 오류입니다. 천천히 다시 눌러주세요.</span>`;
-                    await new Promise(resolve => setTimeout(resolve, delays[i]));
+                    if (i === 4) return `🚨 응답 오류: API 키가 정확한지 확인해주세요. (${error.message})`;
+                    await new Promise(res => setTimeout(res, delays[i]));
                 }
             }
         }
 
-        // --- Map Setup ---
-        const map = L.map('map', { zoomControl: false }).setView([35.6895, 139.6917], 12);
-        L.control.zoom({ position: 'bottomleft' }).addTo(map);
-
-        L.tileLayer('https://mt1.google.com/vt/lyrs=m&hl=ko&x={x}&y={y}&z={z}', {
-            attribution: '&copy; Google Maps', maxZoom: 19
-        }).addTo(map);
-
+        // --- 워드 원본 100% 대조 및 이전 장소 -> 현재 장소 이동 경로 논리 적용 ---
         const itineraryData = {
-            day1: { color: '#3b82f6', desc: '하라주쿠 -> 나카메구로 -> 신주쿠', date: '3월 14일', locations: [
-                { name: '호텔 (가야바초)', lat: 35.6797, lng: 139.7797, icon: '🏨', time: '13:00', text: '호텔 짐 보관 후 바로 외출', link: 'https://www.google.com/maps/dir/?api=1&origin=Kayabacho+Station&destination=Meiji-jingumae+Station&travelmode=transit', linkText: '🚇 히비야선 -> 치요다선 (약 35분)' },
-                { name: '메이지 신궁', lat: 35.6764, lng: 139.6993, icon: '⛩️', time: '14:00 - 15:30', text: '숲길을 걸으며 스냅 사진 찍기 좋은 스팟.', link: 'https://www.google.com/maps/dir/?api=1&origin=Meiji-jingumae+Station&destination=ASICS+HARAJUKU+FLAGSHIP&travelmode=walking', linkText: '🚶 하라주쿠 메인 스트리트 도보 10분' },
-                { name: 'ASICS & FULLCOUNT', lat: 35.6698, lng: 139.7041, icon: '👟', time: '15:40 - 16:30', text: '본격적인 스트릿 브랜드 쇼핑 시작.', link: 'https://www.google.com/maps/dir/?api=1&origin=ASICS+HARAJUKU+FLAGSHIP&destination=Nepenthes+Tokyo&travelmode=walking', linkText: '🚶 캣스트리트 골목 도보 8분' },
-                { name: '네펜데스 도쿄', lat: 35.6655, lng: 139.7061, icon: '👕', time: '16:40 - 17:30', text: '독보적인 아메카지 무드 매장 탐방.', link: 'https://www.google.com/maps/dir/?api=1&origin=Nepenthes+Tokyo&destination=Ramen+Jazz+Beats+Nakameguro&travelmode=transit', linkText: '🚇 후쿠토신선 나카메구로행 (약 15분)' },
-                { name: '라멘 재지 비츠', lat: 35.6441, lng: 139.6990, icon: '🍜', time: '18:00 - 19:00', text: '나카메구로의 트렌디한 라멘으로 저녁식사.', link: 'https://www.google.com/maps/dir/?api=1&origin=Ramen+Jazz+Beats+Nakameguro&destination=Benten-yu+Shinjuku&travelmode=transit', linkText: '🚇 히비야선 -> 오에도선 (약 35분)' },
-                { name: '벤텐유 사우나', lat: 35.6946, lng: 139.7180, icon: '♨️', time: '19:40 - 21:00', text: '신주쿠 한복판 로컬 감성 목욕탕 (짝수일 방문).', link: 'https://www.google.com/maps/dir/?api=1&origin=Benten-yu+Shinjuku&destination=Hotel+Villa+Fontaine+Tokyo-Kayabacho&travelmode=transit', linkText: '🚇 오에도선 -> 도자이선 복귀 (약 30분)' },
-                { name: '호텔 복귀', lat: 35.6797, lng: 139.7797, icon: '🛌', time: '21:30', text: '첫날 스냅 사진 정리 및 휴식.', link: '', linkText: '' }
+            day1: { color: '#3b82f6', desc: '하라주쿠 -> 시부야 -> 신주쿠 (사우나) -> 숙소', date: '3월 14일 (토)', locations: [
+                { name: '나리타 공항(NRT) 도착', lat: 35.7720, lng: 140.3929, icon: '🛬', time: '10:00', text: '14일 10:00 나리타 공항 도착 및 입국 수속', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=Narita+Airport', 
+                  routeLink: '', routeText: '' },
+                { name: '호텔 빌라 퐁텐 카야바초', lat: 35.6797, lng: 139.7797, icon: '🏨', time: '13:00', text: '호텔 빌라 퐁텐 도쿄 카야바초 (도쿄역/니혼바시 부근으로 동쪽 이동이 수월함). 짐 보관 후 바로 외출', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=Hotel+Villa+Fontaine+Tokyo-Kayabacho', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=Narita+Airport&destination=Hotel+Villa+Fontaine+Tokyo-Kayabacho&travelmode=transit', routeText: '🚇 공항 -> 숙소 (스카이라이너 등)' },
+                { name: '메이지 신궁', lat: 35.6764, lng: 139.6993, icon: '⛩️', time: '14:00 - 15:30', text: '메이지 신궁: 숲길을 걸으며 스냅 사진 찍기 좋은 스팟', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=Meiji+Jingu', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=Kayabacho+Station&destination=Meiji-jingumae+Station&travelmode=transit', routeText: '🚇 숙소 -> 하라주쿠역/메이지진구마에역' },
+                { name: 'ASICS & FULLCOUNT', lat: 35.6698, lng: 139.7041, icon: '👟', time: '15:30 - 17:00', text: 'ASICS FLAGSHIP HARAJUKU & FULLCOUNT TOKYO SHOP (쇼핑)', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=ASICS+HARAJUKU+FLAGSHIP', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=Meiji+Jingu&destination=ASICS+HARAJUKU+FLAGSHIP&travelmode=walking', routeText: '🚶 메이지신궁 -> 오모테산도 방면 도보' },
+                { name: '네펜데스 도쿄', lat: 35.6655, lng: 139.7061, icon: '👕', time: '15:30 - 17:00', text: '네펜데스 도쿄 (Nepenthes Tokyo): 독특한 패션 아이템 구경', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=Nepenthes+Tokyo', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=ASICS+HARAJUKU+FLAGSHIP&destination=Nepenthes+Tokyo&travelmode=walking', routeText: '🚶 아식스 -> 네펜데스 (캣스트리트 도보)' },
+                { name: '미야시타 파크', lat: 35.6621, lng: 139.7016, icon: '🛹', time: '17:30 - 18:30', text: '미야시타 파크: 도심 속 루프탑 공원에서 시부야 전경 스냅 촬영', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=Miyashita+Park', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=Nepenthes+Tokyo&destination=Miyashita+Park&travelmode=walking', routeText: '🚶 네펜데스 -> 미야시타 파크 도보' },
+                { name: '시부야 쇼핑', lat: 35.6610, lng: 139.6990, icon: '🛍️', time: '17:30 - 18:30', text: "FREAK'S STORE Shibuya, 이케아 시부야, Patagonia Shibuya, mont-bell Shibuya 순서대로 구경", 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=Freak\'s+Store+Shibuya', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=Miyashita+Park&destination=Freak\'s+Store+Shibuya&travelmode=walking', routeText: '🚶 미야시타 -> 시부야 쇼핑거리 도보' },
+                { name: '라멘 재지 비츠', lat: 35.6441, lng: 139.6990, icon: '🍜', time: '18:30 - 20:00', text: '라멘 재지 비츠 (Ramen Jazzy Beats): 브레이크 타임 끝나는 17:30에 맞춰 저녁 식사 (월/화요일 휴무이므로 반드시 주말에 방문해야 함)', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=Ramen+Jazzy+Beats', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=Shibuya+Station&destination=Ramen+Jazzy+Beats&travelmode=transit', routeText: '🚇 시부야역 -> 나카메구로 방면' },
+                { name: '다이칸야마 T-Site', lat: 35.6488, lng: 139.7001, icon: '📚', time: '18:30 - 20:00', text: '나카메구로 강변을 따라 걸으며 야간 스트릿 촬영 후 다이칸야마 티사이트(T-Site) 방문 (건축물 야경이 매우 아름다움)', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=Daikanyama+T-Site', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=Ramen+Jazzy+Beats&destination=Daikanyama+T-Site&travelmode=walking', routeText: '🚶 라멘집 -> 나카메구로 강변 -> 다이칸야마 도보' },
+                { name: '벤텐유 (Benten-yu)', lat: 35.6946, lng: 139.7180, icon: '♨️', time: '20:40 - 22:30', text: '벤텐유 (Benten-yu / 弁天湯) 신주쿠구(아케보노바시역 부근)로 이동하여 굴뚝과 옛날식 타일이 남아있는 로컬 대중목욕탕에서 감성적인 사우나 마무리 (14:30~새벽 1:00 운영, 수요일 휴무)', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=Benten-yu+Shinjuku', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=Daikanyama+Station&destination=Akebonobashi+Station&travelmode=transit', routeText: '🚇 다이칸야마 -> 아케보노바시역(벤텐유)' },
+                { name: '숙소 복귀', lat: 35.6797, lng: 139.7797, icon: '🛏️', time: '23:00 - ', text: '호텔 빌라 퐁텐 도쿄 카야바초로 복귀 및 1일차 마무리', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=Hotel+Villa+Fontaine+Tokyo-Kayabacho', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=Akebonobashi+Station&destination=Hotel+Villa+Fontaine+Tokyo-Kayabacho&travelmode=transit', routeText: '🚇 벤텐유 -> 숙소 복귀 경로' }
             ]},
-            day2: { color: '#f43f5e', desc: '에비스 -> 다이칸야마 -> 시부야', date: '3월 15일', locations: [
-                { name: '호텔 출발', lat: 35.6797, lng: 139.7797, icon: '🏨', time: '10:00', text: '에비스로 이동 시작', link: 'https://www.google.com/maps/dir/?api=1&origin=Hotel+Villa+Fontaine+Tokyo-Kayabacho&destination=Sukima+Ebisu&travelmode=transit', linkText: '🚇 히비야선 에비스역 (약 35분)' },
-                { name: '헨더 스킴', lat: 35.6464, lng: 139.7130, icon: '👞', time: '10:40 - 11:30', text: '고급 가죽 소품 및 스니커즈 셀렉팅.', link: 'https://www.google.com/maps/dir/?api=1&origin=Sukima+Ebisu&destination=Daikanyama+T-Site&travelmode=walking', linkText: '🚶 다이칸야마 주택가 거치며 도보 15분 스냅' },
-                { name: '다이칸야마 T-Site', lat: 35.6488, lng: 139.7001, icon: '📚', time: '11:45 - 13:00', text: '세련된 건축물 배경 스냅 촬영 및 점심.', link: 'https://www.google.com/maps/dir/?api=1&origin=Daikanyama+T-Site&destination=Freak\'s+Store+Shibuya&travelmode=transit', linkText: '🚇 도요코선 시부야역 (약 10분)' },
-                { name: 'FREAK\'S & NUBIAN', lat: 35.6620, lng: 139.6990, icon: '🛍️', time: '13:30 - 15:30', text: '시부야 파르코 및 하이엔드 스트릿 탐방.', link: 'https://www.google.com/maps/dir/?api=1&origin=Freak\'s+Store+Shibuya&destination=The+Roastery+by+Nozy+Coffee&travelmode=walking', linkText: '🚶 캣스트리트 쪽으로 진입하며 도보 10분' },
-                { name: 'Nozy Coffee', lat: 35.6650, lng: 139.7050, icon: '☕', time: '15:40 - 16:30', text: '커피 타임 및 캣스트리트 패션 피플 관찰.', link: 'https://www.google.com/maps/dir/?api=1&origin=The+Roastery+by+Nozy+Coffee&destination=Shibuya+SAUNAS&travelmode=walking', linkText: '🚶 사쿠라가오카초 방향으로 도보 15분' },
-                { name: '시부야 SAUNAS', lat: 35.6545, lng: 139.7015, icon: '♨️', time: '17:00 - 19:00', text: '관동 최상급 냉탕을 갖춘 최고급 핀란드식 사우나.', link: 'https://www.google.com/maps/dir/?api=1&origin=Shibuya+SAUNAS&destination=Hotel+Villa+Fontaine+Tokyo-Kayabacho&travelmode=transit', linkText: '🚇 한조몬선 -> 도자이선 복귀 (약 30분)' },
-                { name: '호텔 복귀', lat: 35.6797, lng: 139.7797, icon: '🛌', time: '20:30', text: '저녁 식사 후 호텔 휴식.', link: '', linkText: '' }
+            day2: { color: '#f43f5e', desc: '빈티지 플리마켓 -> 나카노 -> 신주쿠 -> 사우나 -> 숙소', date: '3월 15일 (일)', locations: [
+                { name: 'Tokyo City Flea Market', lat: 35.5947, lng: 139.7438, icon: '🎪', time: '09:30 - 12:00', text: 'Tokyo City Flea Market (도쿄 시티 플리마켓): 오이 경마장 주차장에서 주말(09:00~14:30)에만 크게 열리는 벼룩시장. 희귀 빈티지 의류/소품과 활기찬 사람들의 모습을 카메라에 담기 최고입니다.', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=Tokyo+City+Flea+Market', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=Hotel+Villa+Fontaine+Tokyo-Kayabacho&destination=Tokyo+City+Flea+Market&travelmode=transit', routeText: '🚇 숙소 -> 오이 경마장 이동' },
+                { name: '카메키치 & 잭로드', lat: 35.7088, lng: 139.6660, icon: '⌚', time: '13:00 - 15:00', text: '나카노 브로드웨 입성. 시계 마니아들의 성지인 카메키치 도쿄 나카노 와 Jackroad(잭로드) 방문 (둘 다 11:00 오픈)', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=Nakano+Broadway', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=Tokyo+City+Flea+Market&destination=Nakano+Station&travelmode=transit', routeText: '🚇 오이경마장 -> 나카노역 이동' },
+                { name: '레몬사 & 빔스 신주쿠', lat: 35.6900, lng: 139.7000, icon: '📷', time: '15:30 - 18:00', text: '레몬사 신주쿠 (Lemon-sha): 중고 카메라 및 렌즈 구경 / 빔스 신주쿠 (BEAMS Shinjuku): 쇼핑 및 신주쿠 거리 걷기', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=BEAMS+Shinjuku', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=Nakano+Station&destination=Shinjuku+Station&travelmode=transit', routeText: '🚇 나카노역 -> 신주쿠 서쪽 출구' },
+                { name: '오모이데 요코초', lat: 35.6931, lng: 139.6995, icon: '🏮', time: '18:30 - 20:30', text: '오모이데 요코초: (저녁 식사 및 술 한잔) 좁은 골목에 붉은 등롱이 켜진 도쿄 최고의 야간 스트릿 사진 스팟.', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=Omoide+Yokocho', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=Shinjuku+Station&destination=Omoide+Yokocho&travelmode=walking', routeText: '🚶 신주쿠 서쪽 출구 -> 오모이데 요코초 도보' },
+                { name: '시부야 SAUNAS', lat: 35.6545, lng: 139.7015, icon: '♨️', time: '21:00 - 23:00', text: '시부야 사우나 (Shibuya SAUNAS) 오모이데 요코초에서 야마노테선을 타고 시부야로 이동(약 7분). 트렌디하고 세련된 시부야 사우나에서 이틀 차의 피로를 씻어냅니다 (08:00~24:00 운영)', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=Shibuya+SAUNAS', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=Shinjuku+Station&destination=Shibuya+Station&travelmode=transit', routeText: '🚇 신주쿠역 -> 시부야역 이동' },
+                { name: '숙소 복귀', lat: 35.6797, lng: 139.7797, icon: '🛏️', time: '23:30 - ', text: '호텔 빌라 퐁텐 도쿄 카야바초로 복귀 및 2일차 마무리', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=Hotel+Villa+Fontaine+Tokyo-Kayabacho', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=Shibuya+Station&destination=Hotel+Villa+Fontaine+Tokyo-Kayabacho&travelmode=transit', routeText: '🚇 시부야역 -> 숙소 복귀 경로' }
             ]},
-            day3: { color: '#10b981', desc: '롯폰기 -> 아오야마 -> 도쿄타워 -> 료고쿠', date: '3월 16일', locations: [
-                { name: '호텔 출발', lat: 35.6797, lng: 139.7797, icon: '🏨', time: '12:30', text: '오전 휴식 후 여유있게 출발.', link: 'https://www.google.com/maps/dir/?api=1&origin=Hotel+Villa+Fontaine+Tokyo-Kayabacho&destination=21_21+DESIGN+SIGHT&travelmode=transit', linkText: '🚇 히비야선 롯폰기역 (약 25분)' },
-                { name: '21_21 DESIGN SIGHT', lat: 35.6660, lng: 139.7300, icon: '🏛️', time: '13:15 - 14:00', text: '안도 타다오가 설계한 디자인 미술관 선 촬영.', link: 'https://www.google.com/maps/dir/?api=1&origin=21_21+DESIGN+SIGHT&destination=KAPITAL+LEGS+Roppongi&travelmode=walking', linkText: '🚶 미드타운 가로질러 도보 10분' },
-                { name: 'KAPITAL LEGS', lat: 35.6625, lng: 139.7280, icon: '👖', time: '14:30 - 15:30', text: '유니크하고 장인 정신이 깃든 의류 셀렉팅.', link: 'https://www.google.com/maps/dir/?api=1&origin=KAPITAL+LEGS+Roppongi&destination=twelvebooks+Aoyama&travelmode=walking', linkText: '🚶 미나미아오야마 방면 도보 20분 스냅' },
-                { name: 'SKWAT / twelvebooks', lat: 35.6610, lng: 139.7160, icon: '📖', time: '16:00 - 18:00', text: '감각적인 인테리어의 아트북 서점.', link: 'https://www.google.com/maps/dir/?api=1&origin=twelvebooks+Aoyama&destination=TOTOPA+Meiji+Park&travelmode=walking', linkText: '🚶 가이엔마에(메이지 공원) 방향 도보 15분' },
-                { name: 'TOTOPA 사우나', lat: 35.6780, lng: 139.7130, icon: '♨️', time: '18:30 - 19:30', text: '트렌디한 사우나에서 다리 피로 회복.', link: 'https://www.google.com/maps/dir/?api=1&origin=TOTOPA+Meiji+Park&destination=Tokyo+Tower&travelmode=transit', linkText: '🚇 오에도선 아카바네바시역 (약 15분)' },
-                { name: '도쿄 타워 스냅', lat: 35.6586, lng: 139.7454, icon: '🗼', time: '20:30 - 21:30', text: '아카바네바시역 주변 도로에서 타워 배경 야경 스냅.', link: 'https://www.google.com/maps/dir/?api=1&origin=Tokyo+Tower&destination=Popeye+Ryogoku&travelmode=transit', linkText: '🚇 오에도선 료고쿠역 (약 30분)' },
-                { name: '뽀빠이 펍', lat: 35.6936, lng: 139.7930, icon: '🍺', time: '22:00 - 23:30', text: '70여 종 크래프트 맥주 전설적인 펍.', link: 'https://www.google.com/maps/dir/?api=1&origin=Popeye+Ryogoku&destination=Hotel+Villa+Fontaine+Tokyo-Kayabacho&travelmode=transit', linkText: '🚕 택시 이용 시 약 1500엔 / 🚇 대중교통 복귀' }
+            day3: { color: '#10b981', desc: '미술관 -> 롯폰기 -> 도쿄타워 -> 료고쿠 -> 숙소', date: '3월 16일 (월)', locations: [
+                { name: '국립신미술관 & 21_21', lat: 35.6653, lng: 139.7264, icon: '🖼️', time: '10:00 - 13:00', text: '국립신미술관 (The National Art Center, Tokyo): 파격적인 곡선 건축물 채광 촬영 (10:00 오픈) / 21_21 DESIGN SIGHT: 안도 타다오가 설계한 디자인 미술관 (두 곳 모두 화요일 휴무이므로 오늘 꼭 가야 함)', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=The+National+Art+Center+Tokyo', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=Hotel+Villa+Fontaine+Tokyo-Kayabacho&destination=The+National+Art+Center+Tokyo&travelmode=transit', routeText: '🚇 숙소 -> 롯폰기/노기자카 방면 이동' },
+                { name: 'KAPITAL LEGS', lat: 35.6625, lng: 139.7280, icon: '👖', time: '13:15 - 14:00', text: 'KAPITAL LEGS Roppongi: 유니크한 의류 구경', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=KAPITAL+LEGS+Roppongi', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=The+National+Art+Center+Tokyo&destination=KAPITAL+LEGS+Roppongi&travelmode=walking', routeText: '🚶 미술관 -> 미드타운에서 롯폰기 힐즈 도보' },
+                { name: 'SKWAT/twelvebooks', lat: 35.6610, lng: 139.7160, icon: '📖', time: '14:30 - 15:30', text: 'SKWAT/twelvebooks: 감각적인 인테리어의 아트북 서점', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=twelvebooks+Aoyama', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=KAPITAL+LEGS+Roppongi&destination=twelvebooks+Aoyama&travelmode=walking', routeText: '🚶 롯폰기 -> 오모테산도/아오야마 방면 도보' },
+                { name: 'TOTOPA 사우나', lat: 35.6780, lng: 139.7130, icon: '♨️', time: '16:00 - 18:00', text: 'TOTOPA 都立明治公園店 메이지 공원(가이엔마에 역 부근)에 위치한 트렌디한 사우나에서 오후 휴식 (사우나 1일 1회 원칙 충족)', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=TOTOPA+Meiji+Park', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=twelvebooks+Aoyama&destination=TOTOPA+Meiji+Park&travelmode=walking', routeText: '🚶 서점 -> 메이지공원/가이엔마에 도보' },
+                { name: '도쿄 타워', lat: 35.6586, lng: 139.7454, icon: '🗼', time: '18:30 - 19:30', text: '도쿄 타워: 해 질 녘 시바 공원이나 주변 도로에서 타워를 배경으로 훌륭한 스트릿 스냅 촬영', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=Tokyo+Tower', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=Kokuritsu-Kyogijo+Station&destination=Tokyo+Tower&travelmode=transit', routeText: '🚇 메이지공원 -> 아카바네바시(도쿄타워)' },
+                { name: '뽀빠이 펍', lat: 35.6936, lng: 139.7930, icon: '🍺', time: '20:30 - 22:30', text: '뽀빠이 (Beer Club Popeye): 70여 종의 크래프트 맥주를 파는 전설적인 곳 (일요일 휴무이므로 월요일 방문). 숙소(카야바초)와도 비교적 가까운 동쪽이라 귀가하기 편합니다.', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=Beer+Club+Popeye+Ryogoku', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=Akabanebashi+Station&destination=Ryogoku+Station&travelmode=transit', routeText: '🚇 아카바네바시 -> 료고쿠역 이동' },
+                { name: '숙소 복귀', lat: 35.6797, lng: 139.7797, icon: '🛏️', time: '23:00 - ', text: '호텔 빌라 퐁텐 도쿄 카야바초로 복귀 및 3일차 마무리', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=Hotel+Villa+Fontaine+Tokyo-Kayabacho', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=Ryogoku+Station&destination=Hotel+Villa+Fontaine+Tokyo-Kayabacho&travelmode=transit', routeText: '🚇 료고쿠역 -> 숙소 복귀 경로' }
             ]},
-            day4: { color: '#f59e0b', desc: '아사쿠사 -> 우에노 -> 나리타 출국', date: '3월 17일', locations: [
-                { name: '체크아웃', lat: 35.6797, lng: 139.7797, icon: '🧳', time: '10:00', text: '체크아웃 및 호텔 짐 보관', link: 'https://www.google.com/maps/dir/?api=1&origin=Hotel+Villa+Fontaine+Tokyo-Kayabacho&destination=Senso-ji&travelmode=transit', linkText: '🚇 아사쿠사선 아사쿠사역 (약 15분)' },
-                { name: '아사쿠사 센소지', lat: 35.7148, lng: 139.7967, icon: '🏮', time: '10:30 - 12:30', text: '북적이는 옛 거리(나카미세도리) 스냅 및 점심.', link: 'https://www.google.com/maps/dir/?api=1&origin=Senso-ji&destination=Ameyoko+Shopping+Street&travelmode=transit', linkText: '🚇 긴자선 우에노역 (약 10분)' },
-                { name: '우에노 아메요코초', lat: 35.7099, lng: 139.7745, icon: '🛒', time: '13:00 - 15:30', text: '재래시장 바이브 스냅 및 드럭스토어 쇼핑.', link: 'https://www.google.com/maps/dir/?api=1&origin=Ameyoko+Shopping+Street&destination=Keisei-Ueno+Station&travelmode=walking', linkText: '🚶 게이세이 우에노역으로 짐 픽업 후 이동' },
-                { name: '나리타 공항으로', lat: 35.7110, lng: 139.7730, icon: '🚆', time: '16:00', text: '19:00 비행기 탑승을 위한 여유 있는 출국길.', link: 'https://www.google.com/maps/dir/?api=1&origin=Keisei-Ueno+Station&destination=Narita+Airport&travelmode=transit', linkText: '🚇 스카이라이너 탑승 (약 45분)' }
+            day4: { color: '#f59e0b', desc: '동도쿄 클래식 스냅 및 귀국', date: '3월 17일 (화)', locations: [
+                { name: '호텔 체크아웃', lat: 35.6797, lng: 139.7797, icon: '🧳', time: '08:00', text: '호텔 빌라 퐁텐 도쿄 카야바초 체크아웃 및 동도쿄 일정 시작', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=Hotel+Villa+Fontaine+Tokyo-Kayabacho', 
+                  routeLink: '', routeText: '' },
+                { name: '츠키지 시장', lat: 35.6655, lng: 139.7707, icon: '🍣', time: '08:00 - 09:30', text: '츠키지 시장: 활기찬 아침 시장 풍경 촬영 및 해산물/길거리 음식으로 아침 식사', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=Tsukiji+Outer+Market', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=Kayabacho+Station&destination=Tsukiji+Station&travelmode=transit', routeText: '🚇 숙소 -> 히비야선 츠키지역 이동' },
+                { name: '이토야 & 아식스 긴자', lat: 35.6738, lng: 139.7674, icon: '🖊️', time: '10:00 - 11:00', text: '긴자 이토야 (Ginza Itoya): 초대형 문구점 오픈(10시) 맞춰 구경 / 아식스 도쿄 긴자 (ASICS Tokyo Ginza)', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=Ginza+Itoya', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=Tsukiji+Outer+Market&destination=Ginza+Itoya&travelmode=walking', routeText: '🚶 츠키지 시장 -> 긴자 방향 도보 이동' },
+                { name: '무기토 올리브 긴자', lat: 35.6698, lng: 139.7649, icon: '🍜', time: '11:00 - 12:00', text: '무기토 올리브 긴자점: 미슐랭 빕구르망에 올랐던 유명 조개 라멘으로 점심 식사 (대기가 있을 수 있으니 오픈 시간 11시에 맞춰가는 것 추천)', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=Mugi+to+Olive+Ginza', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=Ginza+Itoya&destination=Mugi+to+Olive+Ginza&travelmode=walking', routeText: '🚶 이토야 -> 식당가(라멘집) 도보' },
+                { name: '아키하바라', lat: 35.6983, lng: 139.7731, icon: '👾', time: '12:30 - 13:30', text: '아키하바라: 애니메이션/전자상가 특유의 사이버펑크 느낌 스트릿 사진 촬영', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=Akihabara+Electric+Town', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=Ginza+Station&destination=Akihabara+Station&travelmode=transit', routeText: '🚇 라멘집 -> 긴자/히비야선 -> 아키하바라 이동' },
+                { name: '본디 카레 진보초본점', lat: 35.6957, lng: 139.7583, icon: '🍛', time: '14:00 - 15:00', text: '본디 카레 진보초본점 (Bondy Curry): 헌책방 거리 진보초에서 가장 유명한 오리지널 유럽풍 카레 (점심시간이 지나면 웨이팅이 덜함)', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=Bondy+Curry+Jimbocho', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=Akihabara+Station&destination=Jimbocho+Station&travelmode=transit', routeText: '🚇 아키하바라 -> 츄오소부선/신주쿠선 -> 진보초역' },
+                { name: '우에노 아메요코초', lat: 35.7099, lng: 139.7745, icon: '🛒', time: '15:15 - 16:15', text: '우에노 아메요코 상점가: 활기찬 시장 골목을 누비며 마지막 도쿄 셔터 누르기 및 기념품 구입', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=Ameyoko+Shopping+Street', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=Jimbocho+Station&destination=Ueno-hirokoji+Station&travelmode=transit', routeText: '🚇 진보초 -> 긴자선 우에노히로코지 방면 이동' },
+                { name: '게이세이 우에노역', lat: 35.7110, lng: 139.7730, icon: '🚆', time: '16:20 - 17:05', text: '게이세이 우에노역에서 코인락커 짐 찾은 후 스카이라이너 탑승 (나리타 공항까지 45분 컷)', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=Keisei-Ueno+Station', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=Ameyoko+Shopping+Street&destination=Keisei-Ueno+Station&travelmode=walking', routeText: '🚶 아메요코초 -> 게이세이 우에노역 코인락커 도보' },
+                { name: '나리타 공항(NRT) 출국', lat: 35.7720, lng: 140.3929, icon: '🛫', time: '17:10', text: '나리타 공항(NRT) 도착 및 출국 준비 (19:00 비행기 탑승)', 
+                  placeLink: 'https://www.google.com/maps/search/?api=1&query=Narita+Airport', 
+                  routeLink: 'https://www.google.com/maps/dir/?api=1&origin=Keisei-Ueno+Station&destination=Narita+Airport&travelmode=transit', routeText: '🚆 게이세이 우에노역 -> 나리타 공항 탑승' }
             ]}
         };
 
-        let currentLayerGroup = L.featureGroup().addTo(map);
-        let currentMapMarkers = [];
-
-        function createCustomIcon(number, color) {
-            return L.divIcon({
-                className: 'custom-div-icon',
-                html: `<div class="marker-label" style="border-color: ${color}; color: ${color};">${number}</div>`,
-                iconSize: [28, 28],
-                iconAnchor: [14, 14]
-            });
-        }
-
-        // 특정 일자 루트 그리기
-        async function drawRoute(dayKey) {
+        function drawRoute(dayKey) {
             currentLayerGroup.clearLayers(); 
             currentMapMarkers = [];
             const dayData = itineraryData[dayKey];
-            const coordinates = dayData.locations.map(loc => [loc.lat, loc.lng]);
+            currentDayContext = dayData;
+            currentDayKey = dayKey;
 
-            L.polyline(coordinates, { color: dayData.color, weight: 6, opacity: 0.6, dashArray: '8, 12', lineJoin: 'round' }).addTo(currentLayerGroup);
+            const w = weatherData[dayKey];
+            document.getElementById('daily-weather-icon').innerText = w.am.icon;
+            document.getElementById('daily-weather-date').innerText = dayData.date;
+            document.getElementById('daily-weather-pop').innerText = `☔ ${w.pop}%`;
+            document.getElementById('weather-am').innerText = w.am.text;
+            document.getElementById('weather-pm').innerText = w.pm.text;
+            document.getElementById('temp-max').innerText = w.max;
+            document.getElementById('temp-min').innerText = w.min;
+            
+            document.getElementById('ai-daily-content').innerHTML = `우측 상단의 <span class="text-purple-600 dark:text-purple-400 font-bold">✨ 버튼</span>을 누르면 AI가 오늘의 동선과 날씨에 맞춘 <b class="text-slate-800 dark:text-white">사진 & 산책 꿀팁</b>을 알려줍니다!`;
+            
+            const coords = dayData.locations.map(loc => [loc.lat, loc.lng]);
+            L.polyline(coords, { color: dayData.color, weight: 6, opacity: 0.6, dashArray: '8, 12', lineJoin: 'round' }).addTo(currentLayerGroup);
 
-            let textHtml = `<h2 class="text-xl font-black text-slate-800 dark:text-slate-100 mb-6 border-l-4 pl-3" style="border-color: ${dayData.color};">Day ${dayKey.replace('day', '')}: ${dayData.desc.split('->').join('·')}</h2><div class="space-y-7 ml-2 pb-10">`;
+            let textHtml = `<h2 class="text-xl font-black text-slate-800 dark:text-slate-100 mb-2 border-l-4 pl-3" style="border-color: ${dayData.color};">Day ${dayKey.replace('day', '')}: ${dayData.desc}</h2>`;
+            
+            if(dayKey === 'day4') {
+                textHtml += `<div class="tip-box"><strong class="text-amber-600 dark:text-amber-400">🎒 이동 꿀팁 (반드시 체크!)</strong><p class="text-xs text-slate-700 dark:text-slate-300 mt-1">마지막 날(17일) 짐 보관: 아침에 호텔(카야바초) 체크아웃을 하고, 무조건 <b>게이세이 우에노역(또는 JR 우에노역) 코인락커</b>에 캐리어를 먼저 넣어두세요. 그래야 일정을 마친 뒤 숙소로 돌아가는 시간을 버리지 않고 바로 공항철도(스카이라이너)를 탈 수 있습니다.</p></div>`;
+            } else {
+                textHtml += `<div class="mb-6"></div>`;
+            }
+
+            textHtml += `<div class="space-y-7 ml-2 pb-10">`;
 
             dayData.locations.forEach((loc, index) => {
-                const marker = L.marker([loc.lat, loc.lng], { icon: createCustomIcon(index + 1, dayData.color) }).addTo(currentLayerGroup);
+                const marker = L.marker([loc.lat, loc.lng], { 
+                    icon: L.divIcon({ className: '', html: `<div class="marker-label" style="border-color:${dayData.color}; color:${dayData.color}">${index+1}</div>`, iconSize:[28,28] }) 
+                }).addTo(currentLayerGroup);
                 currentMapMarkers.push(marker);
 
-                const gmapSearchUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.name + ' 도쿄')}`;
-
-                // 팝업 레이아웃: 버튼 두 개를 가로(좌/우)로 꽉 차게 배치하여 세로 길이 축소
-                const popupContent = `
-                    <div class="text-center min-w-[170px] max-w-[200px]">
-                        <div class="text-2xl mb-1">${loc.icon}</div>
-                        <div class="font-bold text-[13px] mb-2 text-slate-800 dark:text-slate-100 leading-tight">${index + 1}. ${loc.name}</div>
-                        
-                        <div class="flex gap-1.5 w-full mt-1">
-                            <button onclick="getPhotoTip('${loc.name}', ${index})" id="btn-tip-${index}" class="flex-1 bg-gradient-to-r from-purple-500 to-indigo-500 text-white py-1.5 rounded-lg text-[10px] font-bold active:scale-95 shadow-sm whitespace-nowrap">✨ AI 팁</button>
-                            <a href="${gmapSearchUrl}" target="_blank" class="flex-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 py-1.5 rounded-lg text-[10px] font-bold border border-slate-300 dark:border-slate-600 shadow-sm flex items-center justify-center whitespace-nowrap">🗺️ 구글맵</a>
-                        </div>
-                        
-                        <div id="ai-tip-box-${index}" class="hidden mt-2 text-left text-[11px] bg-indigo-50 dark:bg-slate-800/80 p-2 rounded-lg border border-indigo-100 dark:border-slate-600 text-indigo-900 dark:text-indigo-200 leading-snug font-medium"></div>
-                    </div>
-                `;
-                marker.bindPopup(popupContent, { className: 'custom-popup', autoPanPadding: [10, 10] });
-
+                // 지도 마커 클릭 시 하단 리스트 해당 항목으로 자동 스크롤 되도록 이벤트 추가
                 marker.on('click', () => {
-                    const el = document.getElementById(`route-item-${index}`);
-                    if(el) {
-                        const panel = document.getElementById('itinerary-panel');
-                        panel.scrollTo({ top: el.offsetTop - 30, behavior: 'smooth' });
-                        el.classList.add('highlight-item');
-                        setTimeout(() => el.classList.remove('highlight-item'), 2000);
+                    const listItem = document.getElementById(`route-item-${index}`);
+                    if (listItem) {
+                        listItem.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        listItem.classList.add('highlight-item');
+                        setTimeout(() => listItem.classList.remove('highlight-item'), 2000);
                     }
                 });
 
+                // 팝업에 AI 팁 버튼 복구 및 장소 정보 링크 유지
+                marker.bindPopup(`<div class="text-center min-w-[170px]">
+                    <div class="text-2xl mb-1">${loc.icon}</div>
+                    <div class="font-bold text-[13px] mb-2 dark:text-white">${index + 1}. ${loc.name}</div>
+                    <div class="flex gap-1.5 w-full mt-1">
+                        <button onclick="getPhotoTip('${loc.name}', ${index})" id="btn-tip-${index}" class="flex-1 bg-purple-600 text-white py-1.5 rounded-lg text-[10px] font-bold active:scale-95 shadow-sm whitespace-nowrap">✨ AI 팁</button>
+                        <a href="${loc.placeLink}" target="_blank" class="flex-1 bg-slate-100 dark:bg-slate-700 dark:text-white py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center whitespace-nowrap shadow-sm">🗺️ 장소 정보</a>
+                    </div>
+                    <div id="ai-tip-box-${index}" class="hidden mt-2 text-left text-[11px] bg-indigo-50 dark:bg-slate-800 p-2 rounded-lg leading-snug text-slate-700 dark:text-slate-300"></div>
+                </div>`, { className: 'custom-popup' });
+
                 textHtml += `
-                    <div id="route-item-${index}" class="relative pl-8 border-l-2 border-slate-200 dark:border-slate-700 py-1 transition-colors duration-300">
+                    <div id="route-item-${index}" class="relative pl-8 border-l-2 border-slate-200 dark:border-slate-700 py-1 transition-all duration-300">
                         <div onclick="focusMapMarker(${index})" class="absolute w-7 h-7 bg-white dark:bg-slate-800 rounded-full border-[3px] flex items-center justify-center text-[13px] font-black -left-[15px] top-0 shadow-sm cursor-pointer hover:scale-110 transition-transform" style="border-color: ${dayData.color}; color: ${dayData.color};">${index + 1}</div>
                         <h4 class="text-slate-800 dark:text-slate-100 font-bold text-base flex items-center gap-2">${loc.time} | ${loc.name}</h4>
-                        <p class="text-[13px] text-slate-500 dark:text-slate-400 font-medium mt-1 leading-snug">${loc.text}</p>
-                        ${loc.link ? `
-                        <a href="${loc.link}" target="_blank" class="inline-flex items-center gap-1.5 text-[11px] text-indigo-600 dark:text-indigo-400 font-bold mt-2 bg-indigo-50/80 dark:bg-slate-800/80 px-2.5 py-1.5 rounded-lg border border-indigo-100 dark:border-slate-700 hover:bg-indigo-100 dark:hover:bg-slate-700 transition-colors cursor-pointer shadow-sm">
-                            ${loc.linkText} <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                        <p class="text-[13px] text-slate-500 dark:text-slate-400 font-medium mt-1.5 leading-snug break-keep">${loc.text}</p>
+                        ${loc.routeLink ? `
+                        <a href="${loc.routeLink}" target="_blank" class="inline-flex items-center gap-1.5 text-[11px] text-indigo-600 dark:text-indigo-400 font-bold mt-2.5 bg-indigo-50/80 dark:bg-slate-800/80 px-2.5 py-1.5 rounded-lg border border-indigo-100 dark:border-slate-700 hover:bg-indigo-100 dark:hover:bg-slate-700 transition-colors cursor-pointer shadow-sm">
+                            ${loc.routeText} <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
                         </a>` : ''}
                     </div>
                 `;
             });
             textHtml += `</div>`;
-
-            map.fitBounds(currentLayerGroup.getBounds(), { padding: [40, 40] });
             document.getElementById('itinerary-content').innerHTML = textHtml;
-            document.getElementById('itinerary-panel').scrollTop = 0;
-            showDailyPanel(dayData.desc, dayData.date);
-        }
-
-        window.focusMapMarker = function(index) {
-            if(currentMapMarkers[index]) {
-                const marker = currentMapMarkers[index];
-                map.setView(marker.getLatLng(), 15, { animate: true, duration: 0.5 });
-                setTimeout(() => marker.openPopup(), 400);
-                if(window.innerWidth < 768) { window.scrollTo({ top: 0, behavior: 'smooth' }); }
-            }
-        };
-
-        function showAll() {
-            document.getElementById('ai-daily-box').classList.add('hidden');
-            document.getElementById('itinerary-content').innerHTML = `<div class="flex flex-col items-center justify-center h-full text-slate-400 dark:text-slate-500 mt-20"><div class="text-5xl mb-4">🗺️</div><p class="font-medium">전체 루트가 지도에 표시되었습니다.</p></div>`;
-            currentLayerGroup.clearLayers();
-            let allCoordinates = [];
-
-            Object.keys(itineraryData).forEach(dayKey => {
-                const dayData = itineraryData[dayKey];
-                const coordinates = dayData.locations.map(loc => [loc.lat, loc.lng]);
-                L.polyline(coordinates, { color: dayData.color, weight: 4, opacity: 0.5 }).addTo(currentLayerGroup);
-                dayData.locations.forEach((loc) => {
-                    L.circleMarker([loc.lat, loc.lng], { radius: 6, fillColor: dayData.color, color: '#fff', weight: 2, fillOpacity: 1 }).bindTooltip(`${loc.name}`).addTo(currentLayerGroup);
-                });
-                allCoordinates = allCoordinates.concat(coordinates);
-            });
-            map.fitBounds(L.latLngBounds(allCoordinates), { padding: [20, 20] });
-        }
-
-        async function showDailyPanel(routeDesc, date) {
-            const aiBox = document.getElementById('ai-daily-box');
-            const contentBox = document.getElementById('ai-daily-content');
-            aiBox.classList.remove('hidden');
-            contentBox.innerHTML = `<div class="flex items-center text-purple-500 py-1"><span class="spinner"></span> 트렌드 & 날씨 분석 중...</div>`;
+            map.fitBounds(currentLayerGroup.getBounds(), { padding: [40, 40] });
             
-            const prompt = `2026년 ${date} 도쿄 날씨를 검색해줘. 코스는 '${routeDesc}'야. 다른 설명은 다 빼고 반드시 아래 양식에 맞춰서만 대답해.
+            const aiBox = document.getElementById('ai-daily-box');
+            aiBox.classList.remove('hidden');
+        }
 
-양식:
-🌡️ 최고°C / 최저°C | 오전날씨이모지 ➡️ 오후날씨이모지 | ☔ 강수확률%
-📸 테마: (이 날씨와 코스에 어울리는 스트릿 스냅 테마를 딱 1~2문장으로 힙하고 짧게 추천)`;
+        async function triggerAiAnalysis() {
+            if (!currentDayContext || !currentDayKey) return;
+            const w = weatherData[currentDayKey];
+            const contentBox = document.getElementById('ai-daily-content');
+            contentBox.innerHTML = `<div class="flex items-center text-purple-600 dark:text-purple-400 py-1"><span class="spinner"></span> AI가 날씨와 동선을 분석하여 맞춤 꿀팁을 작성하고 있습니다...</div>`;
+            
+            const places = currentDayContext.locations.map(l => l.name).join(", ");
+            const prompt = `도쿄 여행 중 ${currentDayContext.date} 일정입니다. 날씨는 오전 ${w.am.text}, 오후 ${w.pm.text}, 최고기온 ${w.max}도, 최저기온 ${w.min}도입니다. 동선은 [${places}] 순서입니다. 이 날씨와 동선을 종합적으로 고려하여, 사진을 예쁘게 찍고 기분 좋게 산책하기 위한 구체적인 꿀팁을 2~3줄로 작성해 주세요. (명소 이름 포함, 자연스럽고 다정한 말투)`;
             
             const responseText = await fetchGemini(prompt);
             contentBox.innerHTML = responseText.replace(/\n/g, '<br>');
         }
 
-        window.getPhotoTip = async function(locationName, index) {
-            const btn = document.getElementById(`btn-tip-${index}`);
-            const tipBox = document.getElementById(`ai-tip-box-${index}`);
-            
-            if (locationName.includes('호텔') || locationName.includes('나리타')) {
-                tipBox.innerHTML = "이곳은 휴식을 위한 장소입니다! 카메라를 잠시 내려놓고 다음 스팟을 준비하세요 🍵";
-                tipBox.classList.remove('hidden'); btn.style.display = 'none'; return;
+        // 팝업 안의 AI 팁 버튼 동작 복구
+        window.getPhotoTip = async function(name, idx) {
+            const btn = document.getElementById(`btn-tip-${idx}`);
+            const box = document.getElementById(`ai-tip-box-${idx}`);
+            if (name.includes('호텔') || name.includes('공항') || name.includes('게이세이') || name.includes('복귀')) { 
+                box.innerHTML = "휴식 및 이동 장소입니다 🍵"; box.classList.remove('hidden'); btn.style.display = 'none'; return; 
             }
-
-            btn.innerHTML = `<span class="spinner"></span> 분석 중...`; btn.disabled = true;
-            const prompt = `도쿄의 '${locationName}'에서 스트릿 스냅 사진을 찍으려고 해. 이곳만의 특별한 사진 구도나 배경, 촬영 팁을 딱 2문장으로 아주 짧고 힙하게 알려줘.`;
-            const responseText = await fetchGemini(prompt);
-            tipBox.innerHTML = `<strong>💡 팁:</strong> ${responseText}`;
-            tipBox.classList.remove('hidden'); btn.style.display = 'none';
+            btn.innerHTML = `<span class="spinner"></span>`;
+            const res = await fetchGemini(`도쿄 '${name}' 스트릿 스냅 사진 촬영 팁 1문장.`);
+            box.innerHTML = `💡 <b>Tip:</b> ${res}`;
+            box.classList.remove('hidden'); btn.style.display = 'none';
         }
 
-        // 페이지 로드 시 타이틀 자동 계산
-        window.onload = () => {
+        window.focusMapMarker = function(index) {
+            if(currentMapMarkers[index]) {
+                const marker = currentMapMarkers[index];
+                map.setView(marker.getLatLng(), 15, { animate: true });
+                setTimeout(() => marker.openPopup(), 400);
+            }
+        };
+
+        function showAll() {
+            document.getElementById('ai-daily-box').classList.add('hidden');
+            document.getElementById('itinerary-content').innerHTML = `<div class="flex flex-col items-center justify-center h-full text-slate-400 mt-20"><div class="text-5xl mb-4">🌏</div><p class="font-medium">전체 루트가 표시되었습니다.</p></div>`;
+            currentLayerGroup.clearLayers();
+            Object.keys(itineraryData).forEach(day => {
+                const d = itineraryData[day];
+                L.polyline(d.locations.map(l => [l.lat, l.lng]), { color: d.color, weight: 4, opacity: 0.4 }).addTo(currentLayerGroup);
+            });
+            map.setZoom(12);
+        }
+
+        window.onload = async () => {
             updateDynamicTitle();
+            await initWeather();
         };
     </script>
 </body>
