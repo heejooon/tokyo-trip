@@ -6,9 +6,6 @@
     <title>도쿄 여행 D-Day 트래커</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = { darkMode: 'class' }
-    </script>
     <!-- Leaflet CSS & JS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
@@ -16,49 +13,38 @@
         @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
         
         body { margin: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; font-family: 'Noto Sans KR', sans-serif; overflow: hidden; }
-        body, #itinerary-panel, header { transition: background-color 0.3s, color 0.3s; }
         
         .main-container { display: flex; flex-direction: column; flex-grow: 1; overflow: hidden; }
         @media (min-width: 768px) { .main-container { flex-direction: row; } }
         
         #map { flex: none; height: 28vh; min-height: 220px; z-index: 1; border-bottom: 1px solid #e2e8f0; }
         @media (min-width: 768px) { #map { flex: 1; height: auto; border-bottom: none; border-right: 1px solid #e2e8f0; } }
-        .dark #map { filter: brightness(0.8) invert(1) contrast(0.9) hue-rotate(200deg); border-color: #1e293b; }
 
         #itinerary-panel { flex: 1; overflow-y: auto; background-color: #ffffff; z-index: 10; scroll-behavior: smooth; }
-        .dark #itinerary-panel { background-color: #0f172a; }
         @media (min-width: 768px) { #itinerary-panel { max-width: 480px; flex: none; width: 480px; } }
 
         .marker-label { background-color: white; border: 3px solid; border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 13px; box-shadow: 0 3px 6px rgba(0,0,0,0.2); }
-        .dark .marker-label { background-color: #1e293b; }
 
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-        .dark ::-webkit-scrollbar-thumb { background: #475569; }
         
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .spinner { border: 2px solid rgba(139, 92, 246, 0.2); border-left-color: #8b5cf6; border-radius: 50%; width: 14px; height: 14px; animation: spin 1s linear infinite; display: inline-block; vertical-align: middle; margin-right: 4px; }
 
         .tip-box { background: linear-gradient(135deg, #fffbeb, #fef3c7); border: 1px solid #fde68a; border-radius: 12px; padding: 16px; margin-top: 20px; margin-bottom: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .dark .tip-box { background: linear-gradient(135deg, #1e293b, #0f172a); border-color: #334155; }
 
-        /* Leaflet 팝업 다크모드 글자/배경색 수정 */
-        .dark .leaflet-popup-content-wrapper,
-        .dark .leaflet-popup-tip { background-color: #1e293b !important; }
-        .dark .leaflet-popup-content, .dark .leaflet-popup-content div { color: #f8fafc !important; }
+        .highlight-item { animation: highlight-fade 2s ease-out; }
+        @keyframes highlight-fade { 0% { background-color: rgba(59, 130, 246, 0.1); border-radius: 0.5rem; } 100% { background-color: transparent; border-radius: 0.5rem; } }
     </style>
 </head>
-<body class="bg-slate-50 dark:bg-slate-900">
+<body class="bg-slate-50">
 
-    <header class="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md pt-5 pb-3 px-4 shadow-sm z-20 relative border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
+    <header class="bg-white/90 backdrop-blur-md pt-5 pb-3 px-4 shadow-sm z-20 relative border-b border-slate-100 flex-shrink-0">
         <div class="flex items-center justify-between mb-4">
             <h1 class="text-xl md:text-2xl font-black tracking-tight flex items-center gap-1">
                 <span>👺</span>
-                <span id="dynamic-title-text" class="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600 dark:from-blue-400 dark:to-purple-400 drop-shadow-sm">도쿄 여행 계산 중...</span>
+                <span id="dynamic-title-text" class="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 to-purple-600 drop-shadow-sm">도쿄 여행 계산 중...</span>
             </h1>
-            <button onclick="toggleDarkMode()" class="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-yellow-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors shadow-sm focus:outline-none">
-                <span id="theme-icon" class="text-lg leading-none flex items-center justify-center">🌙</span>
-            </button>
         </div>
         
         <div class="flex w-full gap-1.5 md:gap-2.5 justify-between pb-1">
@@ -76,34 +62,34 @@
         <div id="itinerary-panel" class="p-5 md:p-7 relative">
             
             <!-- 개편된 AI 날씨 & 무드 박스 (항상 표시) -->
-            <div id="ai-daily-box" class="mb-8 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-5 shadow-sm hidden transition-colors">
+            <div id="ai-daily-box" class="mb-8 bg-white border border-slate-200 rounded-2xl p-5 shadow-sm hidden">
                 <div class="flex items-start justify-between mb-4">
                     <div class="flex items-center gap-3">
                         <div class="text-4xl" id="daily-weather-icon">🌤️</div>
                         <div>
-                            <div class="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                            <div class="text-sm font-bold text-slate-800 flex items-center gap-2">
                                 <span id="daily-weather-date">날씨 불러오는 중...</span>
-                                <span class="px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full text-[10px] font-black" id="daily-weather-pop">☔ 0%</span>
+                                <span class="px-2 py-0.5 bg-blue-50 text-blue-600 rounded-full text-[10px] font-black" id="daily-weather-pop">☔ 0%</span>
                             </div>
-                            <div class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                            <div class="text-xs text-slate-500 mt-1">
                                 오전 <span id="weather-am" class="font-bold"></span> · 오후 <span id="weather-pm" class="font-bold"></span> | 
                                 <span class="text-red-500">최고 <span id="temp-max"></span>°</span> · 
                                 <span class="text-blue-500">최저 <span id="temp-min"></span>°</span>
                             </div>
                         </div>
                     </div>
-                    <!-- 분석하기 버튼이 심플한 ✨ 로 변경됨 -->
-                    <button onclick="triggerAiAnalysis()" class="bg-purple-100 hover:bg-purple-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-purple-600 dark:text-purple-400 w-10 h-10 rounded-xl text-xl flex items-center justify-center shadow-sm transition-transform active:scale-90" title="AI 사진 & 산책 꿀팁 분석">
+                    <!-- 분석하기 버튼 -->
+                    <button onclick="triggerAiAnalysis()" class="bg-purple-100 hover:bg-purple-200 text-purple-600 w-10 h-10 rounded-xl text-xl flex items-center justify-center shadow-sm transition-transform active:scale-90" title="AI 사진 & 산책 꿀팁 분석">
                         ✨
                     </button>
                 </div>
-                <div id="ai-daily-content" class="text-[13px] text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-100 dark:border-slate-700/50 leading-relaxed font-medium">
-                    우측 상단의 <span class="text-purple-600 dark:text-purple-400 font-bold">✨ 버튼</span>을 누르면 AI가 오늘의 동선과 날씨에 맞춘 <b class="text-slate-800 dark:text-white">사진 & 산책 꿀팁</b>을 알려줍니다!
+                <div id="ai-daily-content" class="text-[13px] text-slate-700 bg-slate-50 p-3 rounded-xl border border-slate-100 leading-relaxed font-medium">
+                    우측 상단의 <span class="text-purple-600 font-bold">✨ 버튼</span>을 누르면 AI가 오늘의 동선과 날씨에 맞춘 <b class="text-slate-800">사진 & 산책 꿀팁</b>을 알려줍니다!
                 </div>
             </div>
 
             <div id="itinerary-content" class="pb-10">
-                <div class="flex flex-col items-center justify-center h-full text-slate-400 dark:text-slate-500 mt-20 transition-colors">
+                <div class="flex flex-col items-center justify-center h-full text-slate-400 mt-20">
                     <div class="text-5xl mb-4 animate-bounce">👆</div>
                     <p class="font-medium">상단의 요일 버튼을 선택하세요</p>
                 </div>
@@ -120,11 +106,6 @@
             
             let badge = (diffDays < 0) ? `D${diffDays}` : (diffDays <= 2 ? `${diffDays + 1}일차` : (diffDays === 3 ? "마지막날" : "여행 종료"));
             document.getElementById('dynamic-title-text').innerText = `도쿄 여행 ${badge}`;
-        }
-
-        function toggleDarkMode() {
-            document.documentElement.classList.toggle('dark');
-            document.getElementById('theme-icon').innerText = document.documentElement.classList.contains('dark') ? '☀️' : '🌙';
         }
 
         const map = L.map('map', { zoomControl: false }).setView([35.6895, 139.6917], 12);
@@ -184,7 +165,7 @@
         // ★★★ 아래 쌍따옴표 안에 발급받은 Gemini API 키를 입력하세요 ★★★
         // ==========================================
         const apiKey = "AIzaSyBkHMuyTVpM-sUOXbgDZAcWwWQBMzuZ0S0"; 
-        const modelName = "gemini-2.5-flash"; // 일반 API 키 사용을 위해 정식 모델명으로 수정됨
+        const modelName = "gemini-2.5-flash"; // 일반 API 키 사용을 위해 정식 모델명 적용
         
         async function fetchGemini(prompt) {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
@@ -197,7 +178,6 @@
                         body: JSON.stringify({
                             contents: [{ parts: [{ text: prompt }] }],
                             systemInstruction: { parts: [{ text: "도쿄 여행 가이드. 사진과 산책 위주로 다정하고 친절한 말투로 대답해. 마크다운 기호 금지." }] }
-                            // 개인 API 키 사용 시 권한 충돌(403, 400 에러)을 유발하던 구글 검색 도구 옵션을 제거했습니다.
                         })
                     });
                     const result = await response.json();
@@ -337,15 +317,15 @@
             document.getElementById('temp-max').innerText = w.max;
             document.getElementById('temp-min').innerText = w.min;
             
-            document.getElementById('ai-daily-content').innerHTML = `우측 상단의 <span class="text-purple-600 dark:text-purple-400 font-bold">✨ 버튼</span>을 누르면 AI가 오늘의 동선과 날씨에 맞춘 <b class="text-slate-800 dark:text-white">사진 & 산책 꿀팁</b>을 알려줍니다!`;
+            document.getElementById('ai-daily-content').innerHTML = `우측 상단의 <span class="text-purple-600 font-bold">✨ 버튼</span>을 누르면 AI가 오늘의 동선과 날씨에 맞춘 <b class="text-slate-800">사진 & 산책 꿀팁</b>을 알려줍니다!`;
             
             const coords = dayData.locations.map(loc => [loc.lat, loc.lng]);
             L.polyline(coords, { color: dayData.color, weight: 6, opacity: 0.6, dashArray: '8, 12', lineJoin: 'round' }).addTo(currentLayerGroup);
 
-            let textHtml = `<h2 class="text-xl font-black text-slate-800 dark:text-slate-100 mb-2 border-l-4 pl-3" style="border-color: ${dayData.color};">Day ${dayKey.replace('day', '')}: ${dayData.desc}</h2>`;
+            let textHtml = `<h2 class="text-xl font-black text-slate-800 mb-2 border-l-4 pl-3" style="border-color: ${dayData.color};">Day ${dayKey.replace('day', '')}: ${dayData.desc}</h2>`;
             
             if(dayKey === 'day4') {
-                textHtml += `<div class="tip-box"><strong class="text-amber-600 dark:text-amber-400">🎒 이동 꿀팁 (반드시 체크!)</strong><p class="text-xs text-slate-700 dark:text-slate-300 mt-1">마지막 날(17일) 짐 보관: 아침에 호텔(카야바초) 체크아웃을 하고, 무조건 <b>게이세이 우에노역(또는 JR 우에노역) 코인락커</b>에 캐리어를 먼저 넣어두세요. 그래야 일정을 마친 뒤 숙소로 돌아가는 시간을 버리지 않고 바로 공항철도(스카이라이너)를 탈 수 있습니다.</p></div>`;
+                textHtml += `<div class="tip-box"><strong class="text-amber-600">🎒 이동 꿀팁 (반드시 체크!)</strong><p class="text-xs text-slate-700 mt-1">마지막 날(17일) 짐 보관: 아침에 호텔(카야바초) 체크아웃을 하고, 무조건 <b>게이세이 우에노역(또는 JR 우에노역) 코인락커</b>에 캐리어를 먼저 넣어두세요. 그래야 일정을 마친 뒤 숙소로 돌아가는 시간을 버리지 않고 바로 공항철도(스카이라이너)를 탈 수 있습니다.</p></div>`;
             } else {
                 textHtml += `<div class="mb-6"></div>`;
             }
@@ -368,24 +348,24 @@
                     }
                 });
 
-                // 팝업에 AI 팁 버튼 복구 및 장소 정보 링크 유지
+                // 팝업에 AI 팁 버튼 및 장소 정보 링크 유지
                 marker.bindPopup(`<div class="text-center min-w-[170px]">
                     <div class="text-2xl mb-1">${loc.icon}</div>
-                    <div class="font-bold text-[13px] mb-2 dark:text-white">${index + 1}. ${loc.name}</div>
+                    <div class="font-bold text-[13px] mb-2">${index + 1}. ${loc.name}</div>
                     <div class="flex gap-1.5 w-full mt-1">
                         <button onclick="getPhotoTip('${loc.name}', ${index})" id="btn-tip-${index}" class="flex-1 bg-purple-600 text-white py-1.5 rounded-lg text-[10px] font-bold active:scale-95 shadow-sm whitespace-nowrap">✨ AI 팁</button>
-                        <a href="${loc.placeLink}" target="_blank" class="flex-1 bg-slate-100 dark:bg-slate-700 dark:text-white py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center whitespace-nowrap shadow-sm">🗺️ 장소 정보</a>
+                        <a href="${loc.placeLink}" target="_blank" class="flex-1 bg-slate-100 py-1.5 rounded-lg text-[10px] font-bold flex items-center justify-center whitespace-nowrap shadow-sm text-slate-800">🗺️ 장소 정보</a>
                     </div>
-                    <div id="ai-tip-box-${index}" class="hidden mt-2 text-left text-[11px] bg-indigo-50 dark:bg-slate-800 p-2 rounded-lg leading-snug text-slate-700 dark:text-slate-300"></div>
+                    <div id="ai-tip-box-${index}" class="hidden mt-2 text-left text-[11px] bg-indigo-50 p-2 rounded-lg leading-snug text-slate-700"></div>
                 </div>`, { className: 'custom-popup' });
 
                 textHtml += `
-                    <div id="route-item-${index}" class="relative pl-8 border-l-2 border-slate-200 dark:border-slate-700 py-1 transition-all duration-300">
-                        <div onclick="focusMapMarker(${index})" class="absolute w-7 h-7 bg-white dark:bg-slate-800 rounded-full border-[3px] flex items-center justify-center text-[13px] font-black -left-[15px] top-0 shadow-sm cursor-pointer hover:scale-110 transition-transform" style="border-color: ${dayData.color}; color: ${dayData.color};">${index + 1}</div>
-                        <h4 class="text-slate-800 dark:text-slate-100 font-bold text-base flex items-center gap-2">${loc.time} | ${loc.name}</h4>
-                        <p class="text-[13px] text-slate-500 dark:text-slate-400 font-medium mt-1.5 leading-snug break-keep">${loc.text}</p>
+                    <div id="route-item-${index}" class="relative pl-8 border-l-2 border-slate-200 py-1 transition-all duration-300">
+                        <div onclick="focusMapMarker(${index})" class="absolute w-7 h-7 bg-white rounded-full border-[3px] flex items-center justify-center text-[13px] font-black -left-[15px] top-0 shadow-sm cursor-pointer hover:scale-110 transition-transform" style="border-color: ${dayData.color}; color: ${dayData.color};">${index + 1}</div>
+                        <h4 class="text-slate-800 font-bold text-base flex items-center gap-2">${loc.time} | ${loc.name}</h4>
+                        <p class="text-[13px] text-slate-500 font-medium mt-1.5 leading-snug break-keep">${loc.text}</p>
                         ${loc.routeLink ? `
-                        <a href="${loc.routeLink}" target="_blank" class="inline-flex items-center gap-1.5 text-[11px] text-indigo-600 dark:text-indigo-400 font-bold mt-2.5 bg-indigo-50/80 dark:bg-slate-800/80 px-2.5 py-1.5 rounded-lg border border-indigo-100 dark:border-slate-700 hover:bg-indigo-100 dark:hover:bg-slate-700 transition-colors cursor-pointer shadow-sm">
+                        <a href="${loc.routeLink}" target="_blank" class="inline-flex items-center gap-1.5 text-[11px] text-indigo-600 font-bold mt-2.5 bg-indigo-50/80 px-2.5 py-1.5 rounded-lg border border-indigo-100 hover:bg-indigo-100 transition-colors cursor-pointer shadow-sm">
                             ${loc.routeText} <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
                         </a>` : ''}
                     </div>
@@ -403,7 +383,7 @@
             if (!currentDayContext || !currentDayKey) return;
             const w = weatherData[currentDayKey];
             const contentBox = document.getElementById('ai-daily-content');
-            contentBox.innerHTML = `<div class="flex items-center text-purple-600 dark:text-purple-400 py-1"><span class="spinner"></span> AI가 날씨와 동선을 분석하여 맞춤 꿀팁을 작성하고 있습니다...</div>`;
+            contentBox.innerHTML = `<div class="flex items-center text-purple-600 py-1"><span class="spinner"></span> AI가 날씨와 동선을 분석하여 맞춤 꿀팁을 작성하고 있습니다...</div>`;
             
             const places = currentDayContext.locations.map(l => l.name).join(", ");
             const prompt = `도쿄 여행 중 ${currentDayContext.date} 일정입니다. 날씨는 오전 ${w.am.text}, 오후 ${w.pm.text}, 최고기온 ${w.max}도, 최저기온 ${w.min}도입니다. 동선은 [${places}] 순서입니다. 이 날씨와 동선을 종합적으로 고려하여, 사진을 예쁘게 찍고 기분 좋게 산책하기 위한 구체적인 꿀팁을 2~3줄로 작성해 주세요. (명소 이름 포함, 자연스럽고 다정한 말투)`;
